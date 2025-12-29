@@ -4,6 +4,7 @@
 The objective of this project is to develop a data science solution that accurately predicts the market valuation of used cars.  
 By analyzing a diverse dataset from **CarDekho** including car model, manufacturing year, fuel type, kilometers driven, and location we built a machine learning pipeline that provides instant price estimates via an interactive web application.
 
+#### Live Application Link : https://car-price-predictor-pro.streamlit.app/
 ---
 
 ## 🛠️ Tech Stack
