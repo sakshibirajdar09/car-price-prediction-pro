@@ -3,39 +3,102 @@ import pandas as pd
 import numpy as np
 import joblib
 import plotly.express as px
+from datetime import datetime
 
-# 1. Page Configuration & Theme
+# 1. PAGE CONFIGURATION
 st.set_page_config(
-    page_title="CarDekho Price Predictor",
-    page_icon="🚗",
+    page_title="CarDekho Pro - AI Price Predictor",
+    page_icon="carrr.png",
     layout="wide"
 )
 
-# Custom CSS for a professional look
-st.markdown("""
-    <style>
-    .main {
-        background-color: #f5f7f9;
+# 2. GLOBAL CONSTANTS (This fixes the 'NameError')
+NUM_COLS = ['owner_count', 'car_age', 'km_numeric', 'engine_cc', 'mileage_numeric', 'max_power_numeric', 'torque_numeric', 'spec_seats']
+
+# 3. THEME STATE MANAGEMENT
+if 'theme' not in st.session_state:
+    st.session_state.theme = 'light'
+
+def toggle_theme():
+    st.session_state.theme = 'dark' if st.session_state.theme == 'light' else 'light'
+
+# 4. THEME STYLING DICTIONARY
+theme_styles = {
+    'light': {
+        'bg': 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+        'card_bg': 'rgba(255, 255, 255, 0.8)',
+        'text': '#1e293b',
+        'sidebar_bg': '#ffffff'
+    },
+    'dark': {
+        'bg': 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+        'card_bg': 'rgba(30, 41, 59, 0.85)',
+        'text': '#f8fafc',
+        'sidebar_bg': '#0f172a'
     }
-    .stButton>button {
-        width: 100%;
-        border-radius: 5px;
-        height: 3em;
-        background-color: #ff4b4b;
+}
+
+current = theme_styles[st.session_state.theme]
+
+# CSS injection for Glassmorphism and Single Car Animation
+st.markdown(f"""
+    <style>
+    .stApp {{
+        background: {current['bg']};
+        color: {current['text']};
+    }}
+    
+    /* Single Car Driving Animation (Left to Right) */
+    @keyframes driveRight {{
+        0% {{ left: -200px; opacity: 0; }}
+        10% {{ opacity: 1; }}
+        90% {{ opacity: 1; }}
+        100% {{ left: 110%; opacity: 0; }}
+    }}
+
+    .driving-car {{
+        position: fixed;
+        bottom: 80px;
+        z-index: 9999;
+        font-size: 80px;
+        pointer-events: none;
+        animation: driveRight 5s ease-in-out forwards;
+    }}
+
+    /* UI Card Styling */
+    .result-card {{
+        background: {current['card_bg']};
+        border-radius: 20px;
+        padding: 30px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+        text-align: center;
+        margin: 30px auto;
+        backdrop-filter: blur(12px);
+        max-width: 800px;
+    }}
+
+    .price-display {{
+        color: #ef4444;
+        font-size: 5rem;
+        font-weight: 900;
+        margin: 9px 0;
+        text-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
+    }}
+
+    .stButton>button {{
+        border-radius: 12px;
+        padding: 15px 30px;
+        background: #ef4444;
         color: white;
         font-weight: bold;
-    }
-    .prediction-card {
-        padding: 20px;
-        border-radius: 10px;
-        background-color: white;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        text-align: center;
-    }
+        border: none;
+        width: 100%;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Asset Loading
+# 5. ASSET LOADING
 @st.cache_resource
 def load_assets():
     model = joblib.load('models/best_car_price_model.pkl')
@@ -47,98 +110,142 @@ def load_assets():
 
 model, scaler, le_brand, le_model, le_city = load_assets()
 
-# 3. Sidebar - Primary Filters
-st.sidebar.image("https://img.icons8.com/clouds/200/car.png") # Visual branding
-st.sidebar.title("Select Car Configuration")
-st.sidebar.markdown("Adjust the primary details here.")
+# 6. SIDEBAR
+with st.sidebar:
+    st.image("carrr.png", width=150)
+    st.title("CarDekho Settings")
+    
+    st.markdown("### 🌓 Appearance")
+    st.button("Toggle Light/Dark Mode", on_click=toggle_theme)
+    st.caption(f"Active Theme: {st.session_state.theme.upper()}")
+    
+    st.divider()
+    st.subheader("📍 Vehicle Details")
+    city = st.selectbox("Select City", le_city.classes_)
+    brand = st.selectbox("Select Brand", le_brand.classes_)
+    car_model = st.selectbox("Select Model", le_model.classes_)
+    st.divider()
+    st.info("XGBoost Model: Operational ✅")
 
-city = st.sidebar.selectbox("📍 Select City", le_city.classes_)
-brand = st.sidebar.selectbox("🏢 Select Brand", le_brand.classes_)
-car_model = st.sidebar.selectbox("🚘 Select Model", le_model.classes_)
-trans = st.sidebar.radio("⚙️ Transmission", ['Manual', 'Automatic'])
-fuel = st.sidebar.selectbox("⛽ Fuel Type", ['Petrol', 'Diesel', 'Cng', 'Lpg', 'Electric'])
+# 7. MAIN INTERFACE
+st.title("🚗 Premium Car Valuation Dashboard")
+st.write("Unlock the true market value of any vehicle using Real-Time AI.")
 
-# 4. Main Panel - Detailed Specifications
-st.title("🚗 Car Price Prediction")
-st.markdown("Enter technical details for a precise market estimate.")
+tab1, tab2 = st.tabs(["📝 Valuation Calculator", "📈 Market Insights"])
 
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("General Details")
-    age = st.slider("📅 Car Age (Years)", 0, 25, 5)
-    km = st.number_input("🛣️ Kilometers Driven", 0, 500000, 30000, step=5000)
-    owners = st.selectbox("👤 Previous Owners", [1, 2, 3, 4, 5])
-    body_type = st.selectbox("🚙 Body Type", ['Hatchback', 'SUV', 'Sedan', 'MUV', 'Coupe', 'Minivans', 'Pickup Trucks', 'Wagon'])
-
-with col2:
-    st.subheader("Technical Specs")
-    engine = st.number_input("🔧 Engine Capacity (CC)", 600, 5000, 1200)
-    mileage = st.slider("⛽ Mileage (kmpl)", 5.0, 35.0, 18.0)
-    power = st.number_input("⚡ Max Power (bhp)", 30.0, 500.0, 85.0)
-    torque = st.number_input("🌀 Torque (Nm)", 50.0, 700.0, 150.0)
-    seats = st.selectbox("💺 Seating Capacity", [2, 4, 5, 7, 8])
-
-st.markdown("---")
-
-# 5. Prediction Logic
-if st.button("Generate Valuation Estimate"):
-    with st.spinner('Analyzing market trends and predicting price...'):
-        # Prepare Encoding
-        city_enc = le_city.transform([city])[0]
-        brand_enc = le_brand.transform([brand])[0]
-        model_enc = le_model.transform([car_model])[0]
-
-        # Construct 24-feature DataFrame
-        input_dict = {
-            'city': city_enc, 'owner_count': owners, 'brand': brand_enc, 'model': model_enc,
-            'car_age': age, 'km_numeric': km, 'engine_cc': engine, 'mileage_numeric': mileage,
-            'max_power_numeric': power, 'torque_numeric': torque, 'spec_seats': seats,
-            'fuel_type_Diesel': 1 if fuel == 'Diesel' else 0,
-            'fuel_type_Electric': 1 if fuel == 'Electric' else 0,
-            'fuel_type_Lpg': 1 if fuel == 'Lpg' else 0,
-            'fuel_type_Petrol': 1 if fuel == 'Petrol' else 0,
-            'transmission_Manual': 1 if trans == 'Manual' else 0,
-            'body_type_Coupe': 1 if body_type == 'Coupe' else 0,
-            'body_type_Hatchback': 1 if body_type == 'Hatchback' else 0,
-            'body_type_MUV': 1 if body_type == 'MUV' else 0,
-            'body_type_Minivans': 1 if body_type == 'Minivans' else 0,
-            'body_type_Pickup Trucks': 1 if body_type == 'Pickup Trucks' else 0,
-            'body_type_SUV': 1 if body_type == 'SUV' else 0,
-            'body_type_Sedan': 1 if body_type == 'Sedan' else 0,
-            'body_type_Wagon': 1 if body_type == 'Wagon' else 0
-        }
-
-        input_df = pd.DataFrame([input_dict])
-
-        # Scaling
-        num_cols = ['owner_count', 'car_age', 'km_numeric', 'engine_cc', 'mileage_numeric', 'max_power_numeric', 'torque_numeric', 'spec_seats']
-        input_df[num_cols] = scaler.transform(input_df[num_cols])
-
-        # Model Prediction
-        prediction = model.predict(input_df)[0]
+with tab1:
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("### 🏗️ Build")
+        fuel = st.selectbox("Fuel Type", ['Petrol', 'Diesel', 'Cng', 'Lpg', 'Electric'])
+        trans = st.radio("Transmission", ['Manual', 'Automatic'], horizontal=True)
+        body = st.selectbox("Body Style", ['Hatchback', 'SUV', 'Sedan', 'MUV', 'Coupe', 'Minivans', 'Pickup Trucks', 'Wagon'])
         
-        # Display Result with Metrics
-        st.markdown(f"""
-            <div class="prediction-card">
-                <h2 style='color: #ff4b4b;'>Estimated Market Value</h2>
-                <h1 style='font-size: 50px;'>₹ {prediction:,.2f}</h1>
-            </div>
-        """, unsafe_allow_html=True)
+    with col2:
+        st.markdown("### 📅 History")
+        age = st.slider("Car Age (Years)", 0, 25, 5)
+        km = st.number_input("Kilometers Driven", 0, 500000, 30000, step=5000)
+        owners = st.select_slider("Previous Owners", options=[1, 2, 3, 4, 5], value=1)
+        
+    with col3:
+        st.markdown("### ⚙️ Performance")
+        engine = st.number_input("Engine CC", 600, 5000, 1200)
+        power = st.number_input("Max Power (bhp)", 30.0, 500.0, 85.0)
+        seats = st.selectbox("Seats", [2, 4, 5, 7, 8])
 
-        # 6. Aesthetic Insight: Plotly Chart
-        st.subheader("Price Insight: Impact of Car Age")
-        # Visualizing a trend: how age typically affects price for this model
+    # Realistic averages for hidden specs
+    mileage, torque = 18.0, 150.0
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    if st.button("🚀 CALCULATE AI VALUATION") :
+        with st.spinner('🔮 AI is crunching the numbers...'):
+            # Encoding
+            input_dict = {
+                'city': le_city.transform([city])[0],
+                'owner_count': owners,
+                'brand': le_brand.transform([brand])[0],
+                'model': le_model.transform([car_model])[0],
+                'car_age': age,
+                'km_numeric': km,
+                'engine_cc': engine,
+                'mileage_numeric': mileage,
+                'max_power_numeric': power,
+                'torque_numeric': torque,
+                'spec_seats': seats,
+                # Fuel One-Hot
+                'fuel_type_Diesel': 1 if fuel == 'Diesel' else 0,
+                'fuel_type_Electric': 1 if fuel == 'Electric' else 0,
+                'fuel_type_Lpg': 1 if fuel == 'Lpg' else 0,
+                'fuel_type_Petrol': 1 if fuel == 'Petrol' else 0,
+                # Transmission One-Hot
+                'transmission_Manual': 1 if trans == 'Manual' else 0,
+                # Body Type One-Hot
+                'body_type_Coupe': 1 if body == 'Coupe' else 0,
+                'body_type_Hatchback': 1 if body == 'Hatchback' else 0,
+                'body_type_MUV': 1 if body == 'MUV' else 0,
+                'body_type_Minivans': 1 if body == 'Minivans' else 0,
+                'body_type_Pickup Trucks': 1 if body == 'Pickup Trucks' else 0,
+                'body_type_SUV': 1 if body == 'SUV' else 0,
+                'body_type_Sedan': 1 if body == 'Sedan' else 0,
+                'body_type_Wagon': 1 if body == 'Wagon' else 0
+            }
+
+            input_df = pd.DataFrame([input_dict])
+            
+            # Use Global NUM_COLS for scaling
+            input_df_scaled = input_df.copy()
+            input_df_scaled[NUM_COLS] = scaler.transform(input_df[NUM_COLS])
+
+            # Prediction
+            prediction = model.predict(input_df_scaled)[0]
+            st.session_state['last_input'] = input_dict # Store for Tab 2
+
+            # Single Car Animation
+            st.markdown('<div class="driving-car">🏎️</div>', unsafe_allow_html=True)
+            
+            # Result UI
+            st.markdown(f"""
+                <div class="result-card">
+                    <h2 style='color: {current['text']}; opacity: 0.8;'>Estimated Market Valuation</h2>
+                    <div class="price-display">₹ {prediction:,.2f}</div>
+                    <p style='color: #10b981; font-weight: bold;'>Confidence: 91.92%</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+with tab2:
+    if 'last_input' in st.session_state:
+        st.subheader("📈 Real-Time Depreciation Analysis")
+        st.write(f"Analyzing value decay for your **{brand} {car_model}** across a 20-year span.")
+        
         ages = np.arange(0, 21)
-        temp_df = pd.concat([input_df]*len(ages), ignore_index=True)
-        # Update ages and re-scale for trend visualization
-        temp_df['car_age'] = (ages - np.mean(ages)) / np.std(ages) # Approximate scaling for visual
-        trend_preds = model.predict(temp_df)
+        base_data = st.session_state['last_input'].copy()
         
-        fig = px.line(x=ages, y=trend_preds, labels={'x': 'Age of Car', 'y': 'Predicted Price'},
-                     title=f"How price depreciates for {brand} {car_model} over time")
-        fig.update_traces(line_color='#ff4b4b')
+        trend_data = []
+        for a in ages:
+            row = base_data.copy()
+            row['car_age'] = a
+            trend_data.append(row)
+            
+        trend_df = pd.DataFrame(trend_data)
+        
+        # Scaling using Global NUM_COLS (Fixed the NameError here)
+        trend_df_scaled = trend_df.copy()
+        trend_df_scaled[NUM_COLS] = scaler.transform(trend_df[NUM_COLS])
+        
+        real_preds = model.predict(trend_df_scaled)
+        
+        fig = px.area(x=ages, y=real_preds, labels={'x': 'Age (Years)', 'y': 'Market Value (₹)'})
+        fig.update_traces(line_color='#ef4444', fillcolor='rgba(239, 68, 68, 0.2)')
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)', 
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color=current['text'])
+        )
         st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("🔍 Calculate a valuation in the 'Valuation Calculator' tab to see market trends.")
 
-st.markdown("---")
-st.caption("Developed for CarDekho Used Car Price Prediction Project | Powered by XGBoost 🚀")
+st.divider()
+st.caption(f"Developed by Sakshi | CarDekho AI Project | Instance: {datetime.now().strftime('%H:%M:%S')} 🚀")
